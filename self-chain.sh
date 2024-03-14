@@ -46,28 +46,43 @@ sudo apt update -y
 sudo apt install git curl build-essential make jq gcc snapd chrony lz4 tmux unzip bc bison binutils bsdmainutils -y
 
 
-# 安装GVM
-rm -rf $HOME/go
-sudo rm -rf /usr/local/go
-cd $HOME
-curl https://dl.google.com/go/go1.20.5.linux-amd64.tar.gz | sudo tar -C/usr/local -zxvf -
-cat <<'EOF' >>$HOME/.profile
-export GOROOT=/usr/local/go
-export GOPATH=$HOME/go
-export GO111MODULE=on
-export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
-EOF
-source $HOME/.profile
-go version
+
+# 检查是否已安装gvm
+if [ -s "/root/.gvm/scripts/gvm" ]; then
+    echo "GVM已安装. 设置GO 1.20.5..."
+    # 如果已经安装了gvm，执行以下命令
+    source /root/.gvm/scripts/gvm
+    gvm install go1.20.5
+    gvm use go1.20.5
+else
+    echo "GVM未安装，安装GVM并设置GO 1.20.5..."
+    # 如果未安装gvm，执行安装步骤
+    bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+    source /root/.gvm/scripts/gvm
+
+    # 安装go1.4作为构建其他Go版本的基础
+    gvm install go1.4 -B
+    gvm use go1.4
+    export GOROOT_BOOTSTRAP=$GOROOT
+
+    # 安装go1.17.13作为过渡版本
+    gvm install go1.17.13
+    gvm use go1.17.13
+    export GOROOT_BOOTSTRAP=$GOROOT
+
+    # 安装并使用go1.20.5
+    gvm install go1.20.5
+    gvm use go1.20.5
+fi
 
 # 安装所有二进制文件
 cd $HOME
-wget https://1501792788-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2FcIZFCZY4EPKDYaPcDZLG%2Fuploads%2FMuuuXZOR6UJKBlYkv27C%2Fselfchaind-linux-amd64?alt=media&token=cd47218e-6562-4553-a63c-62bb1d5199f2
+wget https://ss-t.selfchain.nodestake.org/selfchaind
 chmod +x selfchaind
-mv selfchaind $HOME/go/bin/
+mv selfchaind /usr/local/bin
 selfchaind version
 
-# 配置artelad
+# 配置selfchaind
 selfchaind config chain-id self-dev-1
 selfchaind init "$NODE_MONIKER" --chain-id=self-dev-1
 
@@ -109,6 +124,7 @@ sudo systemctl restart selfchaind
 
 
 # 完成设置
+
 echo '====================== 安装完成 ==========================='
 
 }
@@ -136,7 +152,7 @@ function check_sync_status() {
     selfchaind status 2>&1 | jq .SyncInfo
 }
 
-# 查看babylon服务状态
+# 查看selfchain服务状态
 function check_service_status() {
     systemctl status selfchaind
 }
@@ -147,26 +163,10 @@ function view_logs() {
 }
 
 # 卸载脚本功能
-function uninstall_script() {
-    local alias_name="sel"
-    local shell_rc_files=("$HOME/.bashrc" "$HOME/.zshrc")
+function uninstall_node() {
+    sudo systemctl stop selfchaind && sudo systemctl disable selfchaind && sudo rm /etc/systemd/system/selfchaind.service && sudo systemctl daemon-reload && rm -rf $HOME/.selfchain && rm -rf selfchain && sudo rm -rf $(which selfchaind)
 
-    for shell_rc in "${shell_rc_files[@]}"; do
-        if [ -f "$shell_rc" ]; then
-            # 移除快捷键
-            sed -i "/alias $alias_name='bash $SCRIPT_PATH'/d" "$shell_rc"
-        fi
-    done
 
-    echo "快捷键 '$alias_name' 已从shell配置文件中移除。"
-    read -p "是否删除脚本文件本身？(y/n): " delete_script
-    if [[ "$delete_script" == "y" ]]; then
-        rm -f "$SCRIPT_PATH"
-        echo "脚本文件已删除。"
-    else
-        echo "脚本文件未删除。"
-    fi
-}
 
 # 主菜单
 function main_menu() {
@@ -183,7 +183,7 @@ function main_menu() {
     echo "5. 查看节点同步状态"
     echo "6. 查看当前服务状态"
     echo "7. 运行日志查询"
-    echo "8. 卸载脚本"
+    echo "8. 卸载节点"
     echo "9. 设置快捷键"  
     read -p "请输入选项（1-9）: " OPTION
 
@@ -195,7 +195,7 @@ function main_menu() {
     5) check_sync_status ;;
     6) check_service_status ;;
     7) view_logs ;;
-    8) uninstall_script ;;
+    8) uninstall_node ;;
     9) check_and_set_alias ;;  
     *) echo "无效选项。" ;;
     esac
