@@ -162,7 +162,7 @@ function view_logs() {
     sudo journalctl -f -u selfchaind.service 
 }
 
-# 卸载脚本功能
+# 卸载节点功能
 function uninstall_node() {
     sudo systemctl stop selfchaind && sudo systemctl disable selfchaind && sudo rm /etc/systemd/system/selfchaind.service && sudo systemctl daemon-reload && rm -rf $HOME/.selfchain && rm -rf selfchain && sudo rm -rf $(which selfchaind)
 
